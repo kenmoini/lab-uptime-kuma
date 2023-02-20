@@ -17,6 +17,23 @@ ARG APPRISE_VERSION=1.2.1
 # renovate: datasource=github-releases depName=cloudflare/cloudflared
 ARG CLOUDFLARED_VERSION=2023.2.1
 
+USER root
+WORKDIR /app
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=1
+
+# Selectively enable repos in case you're building on an entitled host
+RUN dnf update -y --disablerepo="*" --enablerepo=ubi-8-appstream-rpms --enablerepo=ubi-8-baseos-rpms && \
+ dnf install -y --disablerepo="*" --enablerepo=ubi-8-appstream-rpms --enablerepo=ubi-8-baseos-rpms git wget && \
+ dnf clean all && \
+ rm -rf /var/cache/dnf && \
+ rm -rf /var/cache/yum && \
+ git clone https://github.com/louislam/uptime-kuma . && \
+ npm run setup
+
+COPY --from=build_healthcheck /app/extra/healthcheck /app/extra/healthcheck
+COPY hack/entrypoint.sh /app/extra/entrypoint.sh
+RUN chmod +x /app/extra/entrypoint.sh && chown -R 1001:1001 /app
+
 # Download and install cloudflared
 RUN ARCH= && dpkgArch="$(uname -i)" \
  && case "${dpkgArch##*-}" in \
@@ -28,25 +45,8 @@ RUN ARCH= && dpkgArch="$(uname -i)" \
  && echo "ARCH: ${ARCH}" \
  && CFD_URL="https://github.com/cloudflare/cloudflared/releases/download/${CLOUDFLARED_VERSION}/cloudflared-linux-${ARCH}" \
  && echo "CFD_URL: ${CFD_URL}" \
- && curl -fsSLo /usr/local/bin/cloudflared ${CFD_URL} \
+ && wget -O /usr/local/bin/cloudflared ${CFD_URL} \
  && chmod +x /usr/local/bin/cloudflared
-
-USER root
-WORKDIR /app
-ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=1
-
-# Selectively enable repos in case you're building on an entitled host
-RUN dnf update -y --disablerepo="*" --enablerepo=ubi-8-appstream-rpms --enablerepo=ubi-8-baseos-rpms && \
- dnf install -y --disablerepo="*" --enablerepo=ubi-8-appstream-rpms --enablerepo=ubi-8-baseos-rpms git && \
- dnf clean all && \
- rm -rf /var/cache/dnf && \
- rm -rf /var/cache/yum && \
- git clone https://github.com/louislam/uptime-kuma . && \
- npm run setup
-
-COPY --from=build_healthcheck /app/extra/healthcheck /app/extra/healthcheck
-COPY hack/entrypoint.sh /app/extra/entrypoint.sh
-RUN chmod +x /app/extra/entrypoint.sh && chown -R 1001:1001 /app
 
 USER 1001
 EXPOSE 8080
