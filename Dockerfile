@@ -11,11 +11,9 @@ FROM docker.io/louislam/uptime-kuma:builder-go AS build_healthcheck
 FROM registry.access.redhat.com/ubi8/nodejs-16:1-82 AS build
 
 # https://docs.renovatebot.com/modules/platform/github/
-# renovate: datasource=pypi depName=apprise versioning=pep440
-ARG APPRISE_VERSION=1.2.1
 
-# renovate: datasource=github-releases depName=cloudflare/cloudflared
 ARG CLOUDFLARED_VERSION=2023.2.1
+ARG UPTIME_KUMA_VERSION=1.20.1
 
 USER root
 WORKDIR /app

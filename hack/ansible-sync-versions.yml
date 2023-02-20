@@ -1,0 +1,9 @@
+---
+- name: Sync versions to upstream and template files
+  hosts: localhost
+  gather_facts: no
+
+  tasks:
+  - name: debug test
+    debug:
+      msg: "test"
