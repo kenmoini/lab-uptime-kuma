@@ -44,3 +44,10 @@
     ansible.builtin.template:
       src: templates/Dockerfile.j2
       dest: Dockerfile
+
+
+
+  - name: Toucha file
+    ansible.builtin.file:
+      path: "{{ playbook_dir }}/../test"
+      state: touch
