@@ -1,0 +1,124 @@
+#!/bin/bash
+
+set -x
+
+###################################################################################
+# VARIABLES
+###################################################################################
+
+CONTAINER_NAME="{{ service.name }}"
+CONTAINER_SOURCE="{{ container_image }}"
+
+## ENVIRONMENTAL VARIABLES
+ENV_VARS="-e TZ={{ service.timezone | default(timezone) }}"
+
+NETWORK="--network {{ service.network.name | default('host') }}"
+
+{% if service.network.ports | length > 0 %}
+CONTAINER_PORTS="-p {{ service.network.ports | join(' -p ') }}"
+NETWORK="${NETWORK} ${CONTAINER_PORTS}"
+{% endif %}
+
+{% if service.network.ip is defined %}
+IP_ADDRESS="{{ service.network.ip }}"
+NETWORK="${NETWORK} --ip ${IP_ADDRESS}"
+{% endif %}
+
+CONFIG_VOLUME_MOUNT="{{ service_containers_dir }}/${CONTAINER_NAME}/volumes/config/config.yml:/app/public/conf.yml:z"
+
+HOST_CA_TRUST_MOUNT="{{ service_containers_dir }}/${CONTAINER_NAME}/certs/ca-bundle.crt:/etc/ssl/certs/extra-root-ca-certificates.crt:ro"
+
+################################################################################
+## JAVA KEYSTORE THINGS
+JKS_PATH="/etc/pki/ca-trust/extracted/java"
+JKS_VOLUME_MOUNT="-v ${JKS_PATH}:${JKS_PATH}"
+
+###################################################################################
+# EXECUTION PREFLIGHT
+###################################################################################
+
+## Ensure there is an action arguement
+if [ -z "$1" ]; then
+  echo "Need action arguement of 'start', 'restart', or 'stop'!"
+  echo "${0} start|stop|restart"
+  exit 1
+fi
+
+
+################################################################################### SERVICE ACTION SWITCH
+case $1 in
+
+  ################################################################################# RESTART/STOP SERVICE
+  "restart" | "stop" | "start")
+    echo "Stopping container services if running..."
+
+    echo "Stopping ${CONTAINER_NAME} container..."
+    /usr/bin/podman kill ${CONTAINER_NAME}
+
+    echo "Removing ${CONTAINER_NAME} container..."
+    /usr/bin/podman rm -f -i ${CONTAINER_NAME}
+    ;;
+  
+  ################################################################################# UPDATE SERVICE
+  "update")
+    echo "Checking for container updates..."
+{% raw %}
+    # Get the current image SHA
+    CURRENT_IMAGE_SHA=$(podman images --digests --format '{{.Digest}}' ${CONTAINER_SOURCE})
+    LATEST_IMAGE_SHA=$(skopeo inspect docker://${CONTAINER_SOURCE} | jq -r '.Digest')
+{% endraw %}
+    # Compare the two strings, making sure they're not empty and begin wiht 'sha256:'
+    if [ ! -z "${LATEST_IMAGE_SHA}" ] && [ ! -z "${CURRENT_IMAGE_SHA}"  ] && [[ "${LATEST_IMAGE_SHA}" == sha256:* ]] && [[ "${CURRENT_IMAGE_SHA}" == sha256:* ]]; then
+      echo "Current image SHA: ${CURRENT_IMAGE_SHA}"
+      echo "Latest image SHA: ${LATEST_IMAGE_SHA}"
+
+      # If the two strings are different then run the update scripts
+      if [ "${CURRENT_IMAGE_SHA}" != "${LATEST_IMAGE_SHA}" ]; then
+        echo "New image available, updating..."
+
+        # Run the update script
+        ${0} stop
+        /usr/bin/podman pull ${CONTAINER_SOURCE}
+        ${0} start
+      else
+        echo "No new image available, exiting..."
+      fi
+    fi
+
+    ;;
+
+esac
+
+case $1 in
+
+  ################################################################################# RESTART/START SERVICE
+  "restart" | "start")
+    sleep 3
+
+    echo "Starting container services..."
+
+    # Deploy ${CONTAINER_NAME} container
+    echo -e "Deploying ${CONTAINER_NAME}...\n"
+
+    /usr/bin/podman create \
+      --name "${CONTAINER_NAME}" \
+      --hostname "${CONTAINER_NAME}" \
+      ${ENV_VARS} \
+      ${NETWORK} \
+      -m {{ service.resources.limits.memory | default('1Gi') }} --cpus {{ service.resources.limits.cpu | default('0.500') }} \
+      -v ${CONFIG_VOLUME_MOUNT} \
+{% if additionalTrustedRootCerts is defined %}
+      -v ${HOST_CA_TRUST_MOUNT} \
+      -e NODE_EXTRA_CA_CERTS=/etc/ssl/certs/extra-root-ca-certificates.crt \
+{% endif %}
+{% if configure_selinux %}
+      --security-opt label=type:${CONTAINER_NAME}.process \
+{% endif %}
+      ${CONTAINER_SOURCE}
+      
+
+    /usr/bin/podman start ${CONTAINER_NAME}
+
+    ;;
+
+esac
