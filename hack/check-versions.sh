@@ -8,8 +8,6 @@ CLOUDFLARED_NEW_VERSION=false
 UPTIME_KUMA_NEW_VERSION=false
 BASEIMAGE_NEW_VERSION=false
 
-GITHUB_TOKEN=$(cat ~/.githubRegistryPAT)
-
 # Check to make sure there was an input provided
 if [ -z "$1" ]; then
     echo "Please provide an action: describe, current-version, latest-version, or check-update"
@@ -26,8 +24,10 @@ if [ "$2" != "all" ] && [ "$2" != "cloudflared" ] && [ "$2" != "uptimekuma" ] &&
     exit 1
 fi
 
-CLOUDFLARED_VERSION="$(curl -sSL -H 'User-Agent: kenmoini' -H "Authorization: Bearer $GITHUB_TOKEN" https://api.github.com/repos/cloudflare/cloudflared/releases/latest | jq -r .tag_name)"
-UPTIME_KUMA_VERSION="$(curl -sSL -H 'User-Agent: kenmoini' -H "Authorization: Bearer $GITHUB_TOKEN" https://api.github.com/repos/louislam/uptime-kuma/releases/latest | jq -r .tag_name)"
+CLOUDFLARED_VERSION="$(curl -sSL https://api.github.com/repos/cloudflare/cloudflared/releases/latest | jq -r .tag_name)"
+#CLOUDFLARED_VERSION="$(curl -sSL -H 'User-Agent: kenmoini' -H "Authorization: Bearer $GITHUB_TOKEN" https://api.github.com/repos/cloudflare/cloudflared/releases/latest | jq -r .tag_name)"
+UPTIME_KUMA_VERSION="$(curl -sSL https://api.github.com/repos/louislam/uptime-kuma/releases/latest | jq -r .tag_name)"
+#UPTIME_KUMA_VERSION="$(curl -sSL -H 'User-Agent: kenmoini' -H "Authorization: Bearer $GITHUB_TOKEN" https://api.github.com/repos/louislam/uptime-kuma/releases/latest | jq -r .tag_name)"
 BASEIMAGE_VERSION="$(curl -sSL https://registry.access.redhat.com/v2/ubi8/nodejs-16/tags/list | jq -r '.tags[]' | sort -V | grep -vE 'latest|source|\.' | tail -1)"
 
 # Read in the current versions from the Dockerfile

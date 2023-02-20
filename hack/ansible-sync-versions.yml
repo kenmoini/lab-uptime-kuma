@@ -4,6 +4,25 @@
   gather_facts: no
 
   tasks:
-  - name: debug test
-    debug:
-      msg: "test"
+
+  - name: Check for updates
+    ansible.builtin.shell: ./hack/check-versions.sh check-update all > .version-check
+
+  - name: Read in if those versions have updates
+    ansible.builtin.include_vars:
+      file: .version-check
+      name: updates_available
+
+  - name: Get update versions
+    ansible.builtin.shell: ./hack/check-versions.sh latest-version all > .version-check
+
+  - name: Read in if those versions have updates
+    ansible.builtin.include_vars:
+      file: .version-check
+      name: latest_version
+
+  - name: Template out the Dockerfile
+    when: updates_available.cloudflared|bool or updates_available.uptimekuma|bool or updates_available.baseimage|bool
+    ansible.builtin.template:
+      src: templates/Dockerfile.j2
+      dest: Dockerfile
