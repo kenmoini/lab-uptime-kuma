@@ -8,7 +8,7 @@ FROM docker.io/louislam/uptime-kuma:builder-go AS build_healthcheck
 ############################################
 # Build in Node.js - RHEL UBI
 ############################################
-FROM registry.access.redhat.com/ubi8/nodejs-16:1-82 AS build
+FROM registry.access.redhat.com/ubi8/nodejs-16:1-90.1679484504 AS build
 
 # https://docs.renovatebot.com/modules/platform/github/
 
